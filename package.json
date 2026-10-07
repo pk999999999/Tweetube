@@ -1,26 +1,36 @@
 {
-  "name": "tweet",
+  "name": "tweetube",
   "version": "1.0.0",
-  "description": "code or chai",
-  "main": "index.js",
-  "scripts": {
-    "dev": "nodemon -r dotenv/config --experimental-json0modules src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "private": true,
+  "type": "module",
+  "description": "Tweetube social video and short-post application",
+  "engines": {
+    "node": ">=22"
   },
-  "keywords": [
-    "backend"
-  ],
-  "author": "Pratik",
-  "license": "ISC",
-  "devDependencies": {
-    "nodemon": "^3.1.10",
-    "prettier": "^3.6.2"
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "format": "prettier --write src public test README.md package.json compose.yaml .github/workflows/ci.yml",
+    "format:check": "prettier --check src public test README.md package.json compose.yaml .github/workflows/ci.yml"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
-    "mongoose": "^8.17.0"
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.17.0",
+    "multer": "^2.0.2",
+    "zod": "^4.0.5"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.2.0",
+    "prettier": "^3.6.2",
+    "supertest": "^7.1.3"
   }
 }
