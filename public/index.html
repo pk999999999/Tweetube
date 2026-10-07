@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d1018" />
+    <meta
+      name="description"
+      content="Tweetube brings short thoughts and videos together."
+    />
+    <title>Tweetube — share what moves you</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <a class="brand" href="/" aria-label="Tweetube home"
+          ><span class="brand-mark">▶</span
+          ><span>Twee<span class="brand-accent">tube</span></span></a
+        >
+        <div class="sidebar-label">EXPLORE</div>
+        <nav class="nav-list" aria-label="Feeds">
+          <button class="nav-item active" data-feed="all">
+            <span class="nav-icon">◉</span> For you
+          </button>
+          <button class="nav-item" data-feed="video">
+            <span class="nav-icon">▷</span> Videos
+          </button>
+          <button class="nav-item" data-feed="tweet">
+            <span class="nav-icon">✎</span> Thoughts
+          </button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="sidebar-note">
+            <span class="note-star">✦</span
+            ><strong>A space for every story.</strong>
+            <p>Share the quick thought or the full picture.</p>
+          </div>
+          <button id="sidebarProfile" class="profile-link" hidden>
+            <span class="avatar small" id="sidebarAvatar">T</span
+            ><span
+              ><strong id="sidebarName"></strong
+              ><small>View profile</small></span
+            ><span class="profile-arrow">↗</span>
+          </button>
+        </div>
+      </aside>
+
+      <div class="main-column">
+        <header class="topbar">
+          <a class="mobile-brand brand" href="/"
+            ><span class="brand-mark">▶</span
+            ><span>Twee<span class="brand-accent">tube</span></span></a
+          >
+          <form id="searchForm" class="search">
+            <span aria-hidden="true">⌕</span
+            ><input
+              id="searchInput"
+              type="search"
+              placeholder="Search stories and videos"
+              aria-label="Search posts"
+            /><kbd>/</kbd>
+          </form>
+          <div class="top-actions">
+            <button id="loginButton" class="button ghost">Log in</button
+            ><button id="signupButton" class="button primary">
+              Join Tweetube</button
+            ><button id="logoutButton" class="button ghost" hidden>
+              Log out
+            </button>
+          </div>
+        </header>
+
+        <main id="mainContent">
+          <section class="hero" aria-labelledby="heroTitle">
+            <div>
+              <span class="eyebrow"
+                ><span class="live-dot"></span> THE CREATOR SPACE</span
+              >
+              <h1 id="heroTitle">
+                Where every idea<br /><em>finds its audience.</em>
+              </h1>
+              <p>
+                Quick thoughts. Big stories. Videos worth staying for. All in
+                one place.
+              </p>
+              <button id="heroAction" class="button primary hero-button">
+                Share your story <span>↗</span>
+              </button>
+            </div>
+            <div class="hero-art" aria-hidden="true">
+              <div class="art-orbit orbit-one"></div>
+              <div class="art-orbit orbit-two"></div>
+              <div class="art-card card-one">
+                <span>▶</span><span class="card-lines"><i></i><i></i></span>
+              </div>
+              <div class="art-card card-two">
+                <span>✦</span><span class="card-lines"><i></i><i></i></span>
+              </div>
+              <div class="art-dot dot-one"></div>
+              <div class="art-dot dot-two"></div>
+            </div>
+          </section>
+
+          <section class="content-area" aria-labelledby="feedTitle">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow dark">DISCOVER</span>
+                <h2 id="feedTitle">For you</h2>
+              </div>
+              <span id="resultCount" class="result-count"></span>
+            </div>
+            <div class="mobile-tabs" aria-label="Feeds">
+              <button data-feed="all" class="active">For you</button
+              ><button data-feed="video">Videos</button
+              ><button data-feed="tweet">Thoughts</button>
+            </div>
+            <form id="composeForm" class="compose-card" hidden>
+              <div class="compose-top">
+                <span id="composeAvatar" class="avatar">T</span>
+                <div>
+                  <strong>Have something to share?</strong>
+                  <p>Start a conversation or publish a video.</p>
+                </div>
+              </div>
+              <div class="compose-fields">
+                <div class="segmented">
+                  <label
+                    ><input type="radio" name="kind" value="tweet" checked />
+                    Thought</label
+                  ><label
+                    ><input type="radio" name="kind" value="video" />
+                    Video</label
+                  >
+                </div>
+                <input
+                  id="postTitle"
+                  name="title"
+                  class="field"
+                  placeholder="Video title"
+                  maxlength="120"
+                  hidden
+                /><textarea
+                  id="postBody"
+                  name="body"
+                  class="field"
+                  placeholder="What's on your mind?"
+                  maxlength="1000"
+                  rows="3"
+                ></textarea
+                ><input
+                  id="postMedia"
+                  name="mediaUrl"
+                  class="field"
+                  type="url"
+                  placeholder="Optional HTTPS image URL"
+                />
+                <div class="compose-footer">
+                  <label class="file-button"
+                    >＋ Upload media<input
+                      id="mediaFile"
+                      type="file"
+                      accept="image/*,video/*" /></label
+                  ><span id="fileName" class="file-name"></span
+                  ><button class="button primary" type="submit">
+                    Publish <span>↗</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+            <div
+              id="status"
+              class="status"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <div id="feed" class="feed"></div>
+            <button id="loadMore" class="button load-more" hidden>
+              Load more stories ↓
+            </button>
+          </section>
+        </main>
+        <footer>
+          © 2026 Tweetube <span>Made for stories that matter.</span>
+        </footer>
+      </div>
+    </div>
+
+    <dialog id="authDialog" class="auth-dialog">
+      <form id="authForm" method="dialog">
+        <button
+          id="closeDialog"
+          class="dialog-close"
+          type="button"
+          aria-label="Close"
+        >
+          ×</button
+        ><span class="brand-mark dialog-mark">▶</span
+        ><span class="eyebrow dark">WELCOME TO TWEETUBE</span>
+        <h2 id="authTitle">Join the conversation.</h2>
+        <p id="authSubtitle">Create your account and start sharing.</p>
+        <div id="usernameGroup">
+          <label for="authUsername">Username</label
+          ><input
+            id="authUsername"
+            class="field"
+            name="username"
+            autocomplete="username"
+            minlength="3"
+            maxlength="30"
+          />
+        </div>
+        <label for="authEmail">Email</label
+        ><input
+          id="authEmail"
+          class="field"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+        /><label for="authPassword">Password</label
+        ><input
+          id="authPassword"
+          class="field"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          minlength="8"
+          required
+        />
+        <div id="authError" class="form-error" role="alert"></div>
+        <button id="authSubmit" class="button primary full" type="submit">
+          Create account
+        </button>
+        <p class="auth-switch">
+          <span id="authSwitchPrompt">Already have an account?</span>
+          <button id="authSwitch" type="button">Log in</button>
+        </p>
+      </form>
+    </dialog>
+  </body>
+</html>
