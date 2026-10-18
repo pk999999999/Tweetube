@@ -29,25 +29,19 @@ app.use(
   })
 );
 app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || config.corsOrigins.includes(origin))
-        return callback(null, true);
-      callback(new HttpError(403, "Origin not allowed"));
-    },
-    credentials: true,
+  cors((req, callback) => {
+    const origin = req.get("origin");
+    const ownOrigin = `${req.protocol}://${req.get("host")}`;
+    if (
+      origin &&
+      origin !== ownOrigin &&
+      !config.corsOrigins.includes(origin)
+    ) {
+      return callback(new HttpError(403, "Origin not allowed"));
+    }
+    callback(null, { origin: true, credentials: true });
   })
 );
-app.use((req, _res, next) => {
-  const origin = req.get("origin");
-  if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && origin) {
-    const ownOrigin = `${req.protocol}://${req.get("host")}`;
-    if (origin !== ownOrigin && !config.corsOrigins.includes(origin)) {
-      return next(new HttpError(403, "Origin not allowed"));
-    }
-  }
-  next();
-});
 app.use(express.json({ limit: "32kb" }));
 app.use(cookieParser());
 app.use(

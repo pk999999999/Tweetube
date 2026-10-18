@@ -47,16 +47,40 @@ function setSession(res, user) {
   });
 }
 
+async function authenticate(req) {
+  const bearer = req.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
+  const token = bearer ?? req.cookies?.session;
+  if (!token) return null;
+  const payload = jwt.verify(token, config.jwtSecret);
+  const user = await User.findById(payload.sub).select("+tokenVersion");
+  if (!user || user.tokenVersion !== payload.ver) return null;
+  return user;
+}
+
+export async function optionalAuth(req, _res, next) {
+  try {
+    req.user = await authenticate(req);
+    next();
+  } catch (error) {
+    if (
+      [
+        "JsonWebTokenError",
+        "TokenExpiredError",
+        "NotBeforeError",
+        "CastError",
+      ].includes(error.name)
+    ) {
+      req.user = null;
+      return next();
+    }
+    next(error);
+  }
+}
+
 export async function requireAuth(req, _res, next) {
   try {
-    const bearer = req.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
-    const token = bearer ?? req.cookies?.session;
-    if (!token) throw new HttpError(401, "Sign in required");
-    const payload = jwt.verify(token, config.jwtSecret);
-    const user = await User.findById(payload.sub).select("+tokenVersion");
-    if (!user || user.tokenVersion !== payload.ver)
-      throw new HttpError(401, "Session expired");
-    req.user = user;
+    req.user = await authenticate(req);
+    if (!req.user) throw new HttpError(401, "Sign in required");
     next();
   } catch (error) {
     next(

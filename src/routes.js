@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth } from "./auth.js";
+import { optionalAuth, requireAuth } from "./auth.js";
 import { HttpError, objectId, pageSchema, parse, publicUser } from "./http.js";
 import { Comment, Follow, Like, Post, User } from "./models.js";
 
@@ -25,7 +25,7 @@ const postInput = z
     "A video needs a title and media URL"
   );
 
-function postJson(post) {
+function postJson(post, liked = false) {
   return {
     id: String(post._id),
     kind: post.kind,
@@ -34,6 +34,7 @@ function postJson(post) {
     mediaUrl: post.mediaUrl,
     thumbnailUrl: post.thumbnailUrl,
     likeCount: post.likeCount,
+    liked,
     commentCount: post.commentCount,
     author: publicUser(post.author),
     createdAt: post.createdAt,
@@ -41,7 +42,22 @@ function postJson(post) {
   };
 }
 
-router.get("/posts", async (req, res) => {
+async function postsJson(posts, user) {
+  const likes =
+    user && posts.length
+      ? await Like.find({
+          user: user._id,
+          post: { $in: posts.map((post) => post._id) },
+        })
+          .select("post")
+          .lean()
+      : [];
+  const likedIds = new Set(likes.map((like) => String(like.post)));
+  return posts.map((post) => postJson(post, likedIds.has(String(post._id))));
+}
+
+router.get("/posts", optionalAuth, async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
   const { page, limit } = parse(pageSchema, req.query);
   const kind = req.query.kind
     ? parse(z.enum(["tweet", "video"]), req.query.kind)
@@ -62,7 +78,7 @@ router.get("/posts", async (req, res) => {
     Post.countDocuments(filter),
   ]);
   res.json({
-    posts: posts.map(postJson),
+    posts: await postsJson(posts, req.user),
     page,
     limit,
     total,
@@ -77,10 +93,11 @@ router.post("/posts", requireAuth, async (req, res) => {
   res.status(201).json({ post: postJson(post) });
 });
 
-router.get("/posts/:id", async (req, res) => {
+router.get("/posts/:id", optionalAuth, async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
   const post = await Post.findById(objectId(req.params.id)).populate("author");
   if (!post) throw new HttpError(404, "Post not found");
-  res.json({ post: postJson(post) });
+  res.json({ post: (await postsJson([post], req.user))[0] });
 });
 
 router.patch("/posts/:id", requireAuth, async (req, res) => {
@@ -97,7 +114,7 @@ router.patch("/posts/:id", requireAuth, async (req, res) => {
   Object.assign(existing, input);
   await existing.save();
   await existing.populate("author");
-  res.json({ post: postJson(existing) });
+  res.json({ post: (await postsJson([existing], req.user))[0] });
 });
 
 router.delete("/posts/:id", requireAuth, async (req, res) => {
@@ -188,22 +205,31 @@ router.delete("/comments/:id", requireAuth, async (req, res) => {
   res.status(204).end();
 });
 
-router.get("/users/:username", async (req, res) => {
+router.get("/users/:username", optionalAuth, async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
   const user = await User.findOne({
     username: req.params.username.toLowerCase(),
   });
   if (!user) throw new HttpError(404, "User not found");
-  const [followers, following, posts] = await Promise.all([
+  const [followers, following, posts, isFollowing] = await Promise.all([
     Follow.countDocuments({ following: user._id }),
     Follow.countDocuments({ follower: user._id }),
     Post.find({ author: user._id })
       .sort({ createdAt: -1 })
       .limit(30)
       .populate("author"),
+    req.user
+      ? Follow.exists({ follower: req.user._id, following: user._id })
+      : null,
   ]);
   res.json({
-    user: { ...publicUser(user), followers, following },
-    posts: posts.map(postJson),
+    user: {
+      ...publicUser(user),
+      followers,
+      following,
+      isFollowing: Boolean(isFollowing),
+    },
+    posts: await postsJson(posts, req.user),
   });
 });
 

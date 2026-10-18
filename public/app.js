@@ -8,6 +8,7 @@ const state = {
   profile: null,
 };
 const feed = $("#feed");
+let viewRequest = 0;
 
 async function api(path, options = {}) {
   const { body, ...rest } = options;
@@ -117,9 +118,16 @@ function renderPost(post) {
   actions.className = "post-actions";
   const like = document.createElement("button");
   like.type = "button";
-  let liked = false;
-  like.textContent = `♡ ${post.likeCount}`;
-  like.setAttribute("aria-label", `Like post, ${post.likeCount} likes`);
+  let liked = post.liked;
+  const updateLike = () => {
+    like.textContent = `${liked ? "♥" : "♡"} ${post.likeCount}`;
+    like.setAttribute("aria-pressed", String(Boolean(liked)));
+    like.setAttribute(
+      "aria-label",
+      `${liked ? "Unlike" : "Like"} post, ${post.likeCount} likes`
+    );
+  };
+  updateLike();
   like.addEventListener("click", async () => {
     if (!state.user) return openAuth("login");
     like.disabled = true;
@@ -129,7 +137,7 @@ function renderPost(post) {
       });
       liked = result.liked;
       post.likeCount = result.likeCount;
-      like.textContent = `${liked ? "♥" : "♡"} ${post.likeCount}`;
+      updateLike();
     } catch (error) {
       status(error.message, true);
     } finally {
@@ -138,6 +146,7 @@ function renderPost(post) {
   });
   const commentsButton = document.createElement("button");
   commentsButton.type = "button";
+  commentsButton.className = "comments-toggle";
   commentsButton.textContent = `◯ ${post.commentCount} Comments`;
   commentsButton.addEventListener("click", () => toggleComments(card, post));
   actions.append(like, commentsButton);
@@ -196,15 +205,21 @@ async function toggleComments(card, post) {
     form.append(input, submit);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      submit.disabled = true;
       try {
         await api(`/posts/${post.id}/comments`, {
           method: "POST",
           body: { body: input.value },
         });
+        post.commentCount += 1;
+        card.querySelector(".comments-toggle").textContent =
+          `◯ ${post.commentCount} Comments`;
         section.remove();
-        toggleComments(card, post);
+        await toggleComments(card, post);
       } catch (error) {
         status(error.message, true);
+      } finally {
+        submit.disabled = false;
       }
     });
     section.append(form);
@@ -214,9 +229,13 @@ async function toggleComments(card, post) {
 }
 
 async function loadFeed(reset = true) {
+  const requestId = ++viewRequest;
+  const page = reset ? 1 : state.page + 1;
+  const more = $("#loadMore");
+  more.disabled = true;
   if (reset) {
-    state.page = 1;
     feed.replaceChildren();
+    more.hidden = true;
   }
   state.profile = null;
   $("#feedTitle").textContent =
@@ -227,10 +246,12 @@ async function loadFeed(reset = true) {
         : "Thoughts";
   status("Loading stories…");
   try {
-    const params = new URLSearchParams({ page: state.page, limit: 12 });
+    const params = new URLSearchParams({ page, limit: 12 });
     if (state.kind !== "all") params.set("kind", state.kind);
     if (state.query) params.set("q", state.query);
     const result = await api(`/posts?${params}`);
+    if (requestId !== viewRequest) return;
+    state.page = page;
     state.total = result.total;
     for (const post of result.posts) feed.append(renderPost(post));
     if (!feed.childElementCount)
@@ -240,14 +261,19 @@ async function loadFeed(reset = true) {
     $("#loadMore").hidden = state.page >= result.pages;
     status();
   } catch (error) {
-    status(error.message, true);
+    if (requestId === viewRequest) status(error.message, true);
+  } finally {
+    if (requestId === viewRequest) more.disabled = false;
   }
 }
 
 async function showProfile(username) {
+  const requestId = ++viewRequest;
+  $("#loadMore").hidden = true;
   status("Loading profile…");
   try {
     const { user, posts } = await api(`/users/${encodeURIComponent(username)}`);
+    if (requestId !== viewRequest) return;
     state.profile = user;
     $("#feedTitle").textContent = `@${user.username}`;
     $("#resultCount").textContent = `${posts.length} recent stories`;
@@ -266,16 +292,29 @@ async function showProfile(username) {
     if (state.user && state.user.id !== user.id) {
       const follow = document.createElement("button");
       follow.className = "button primary";
-      follow.textContent = "Follow";
+      const updateFollow = () => {
+        follow.textContent = user.isFollowing ? "Unfollow" : "Follow";
+        follow.setAttribute("aria-pressed", String(user.isFollowing));
+        counts.textContent = `${user.followers} followers · ${user.following} following`;
+      };
+      updateFollow();
       follow.addEventListener("click", async () => {
+        follow.disabled = true;
         try {
-          await api(`/users/${encodeURIComponent(user.username)}/follow`, {
-            method: "POST",
-          });
-          follow.textContent = "Following";
-          follow.disabled = true;
+          const result = await api(
+            `/users/${encodeURIComponent(user.username)}/follow`,
+            {
+              method: user.isFollowing ? "DELETE" : "POST",
+            }
+          );
+          if (result.following !== user.isFollowing)
+            user.followers += result.following ? 1 : -1;
+          user.isFollowing = result.following;
+          updateFollow();
         } catch (error) {
           status(error.message, true);
+        } finally {
+          follow.disabled = false;
         }
       });
       intro.append(follow);
@@ -284,7 +323,7 @@ async function showProfile(username) {
     for (const post of posts) feed.append(renderPost(post));
     status();
   } catch (error) {
-    status(error.message, true);
+    if (requestId === viewRequest) status(error.message, true);
   }
 }
 
@@ -300,6 +339,8 @@ function openAuth(mode = "register") {
     : "Create your account and start sharing.";
   $("#usernameGroup").hidden = login;
   $("#authUsername").required = !login;
+  $("#authUsername").disabled = login;
+  $("#authPassword").autocomplete = login ? "current-password" : "new-password";
   $("#authSubmit").textContent = login ? "Log in" : "Create account";
   $("#authSwitchPrompt").textContent = login
     ? "New to Tweetube?"
@@ -345,7 +386,7 @@ $("#logoutButton").addEventListener("click", async () => {
   try {
     await api("/auth/logout", { method: "POST" });
     setUser(null);
-    loadFeed();
+    openFeed();
   } catch (error) {
     status(error.message, true);
   }
@@ -353,15 +394,15 @@ $("#logoutButton").addEventListener("click", async () => {
 $("#sidebarProfile").addEventListener("click", () => {
   location.hash = `user/${state.user.username}`;
 });
-$("#loadMore").addEventListener("click", () => {
-  state.page += 1;
-  loadFeed(false);
-});
+$("#loadMore").addEventListener("click", () => loadFeed(false));
+function openFeed() {
+  if (location.hash) location.hash = "";
+  else loadFeed();
+}
 $("#searchForm").addEventListener("submit", (event) => {
   event.preventDefault();
   state.query = $("#searchInput").value.trim();
-  location.hash = "";
-  loadFeed();
+  openFeed();
 });
 document.addEventListener("keydown", (event) => {
   if (
@@ -377,13 +418,12 @@ for (const button of document.querySelectorAll("[data-feed]"))
     state.kind = button.dataset.feed;
     state.query = "";
     $("#searchInput").value = "";
-    location.hash = "";
     document
       .querySelectorAll("[data-feed]")
       .forEach((item) =>
         item.classList.toggle("active", item.dataset.feed === state.kind)
       );
-    loadFeed();
+    openFeed();
   });
 window.addEventListener("hashchange", () => {
   const username = location.hash.match(/^#user\/([^/]+)$/)?.[1];
@@ -392,17 +432,20 @@ window.addEventListener("hashchange", () => {
 });
 
 const mediaField = $("#postMedia");
-document.querySelectorAll('input[name="kind"]').forEach((radio) =>
-  radio.addEventListener("change", () => {
-    const video =
-      document.querySelector('input[name="kind"]:checked').value === "video";
-    $("#postTitle").hidden = !video;
-    $("#postTitle").required = video;
-    mediaField.placeholder = video
-      ? "HTTPS video URL (or upload a file)"
-      : "Optional HTTPS image URL";
-  })
-);
+function updateComposer() {
+  const video =
+    document.querySelector('input[name="kind"]:checked').value === "video";
+  $("#postTitle").hidden = !video;
+  $("#postTitle").required = video;
+  $("#mediaFile").accept = video ? "video/*" : "image/*";
+  mediaField.placeholder = video
+    ? "HTTPS video URL (or upload a file)"
+    : "Optional HTTPS image URL";
+}
+document
+  .querySelectorAll('input[name="kind"]')
+  .forEach((radio) => radio.addEventListener("change", updateComposer));
+updateComposer();
 $("#mediaFile").addEventListener("change", () => {
   $("#fileName").textContent = $("#mediaFile").files[0]?.name || "";
 });
@@ -413,23 +456,34 @@ $("#composeForm").addEventListener("submit", async (event) => {
   try {
     let mediaUrl = mediaField.value.trim();
     const file = $("#mediaFile").files[0];
+    const kind = document.querySelector('input[name="kind"]:checked').value;
     if (file) {
+      if (!file.type.startsWith(kind === "video" ? "video/" : "image/")) {
+        throw new Error(
+          kind === "video"
+            ? "Choose a video file."
+            : "Choose an image file for a thought."
+        );
+      }
+      if (file.size > 50 * 1024 * 1024)
+        throw new Error("File exceeds 50 MB limit");
       const data = new FormData();
       data.append("file", file);
       status("Uploading media…");
       mediaUrl = (await api("/media", { method: "POST", body: data })).url;
     }
     const body = {
-      kind: document.querySelector('input[name="kind"]:checked').value,
+      kind,
       title: $("#postTitle").value.trim(),
       body: $("#postBody").value.trim(),
       mediaUrl,
     };
     await api("/posts", { method: "POST", body });
     $("#composeForm").reset();
+    updateComposer();
     $("#fileName").textContent = "";
     status("Your story is live.");
-    loadFeed();
+    openFeed();
   } catch (error) {
     status(error.message, true);
   } finally {

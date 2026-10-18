@@ -13,7 +13,7 @@ npm run dev
 
 Visit `http://localhost:8000`. Media uploads require `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`. Creators can use HTTPS media URLs without Cloudinary.
 
-Run `npm test` for the API integration suite. It starts and stops an isolated temporary MongoDB instance. Run `npm run format:check` to check formatting.
+Run `npm test` for the API integration and browser interaction regression suites. The API tests start and stop an isolated temporary MongoDB instance; the first run downloads a MongoDB binary and needs internet access. To run the client logic tests without a database or download, use `node --test test/client.test.js`. Run `npm run format:check` to check formatting.
 
 ## Docker deployment
 
@@ -51,6 +51,10 @@ All endpoints below are under `/api/v1`. Responses use JSON. Authentication uses
 | POST               | `/media`                                        | Upload one image or video as `file` (up to 50 MB)                       |
 
 Health checks are `/healthz` and `/readyz`. The API returns `{ "error": "..." }` for errors. Feed pages are capped at 30 items.
+
+Feed, post, and profile reads include a `liked` boolean for each post. Profiles also include `user.isFollowing`. These reflect the current session and are false for signed-out visitors. Personalized reads use `Cache-Control: private, no-store`; expired sessions can still browse public content. The client restores these states on refresh and supports both liking/unliking and following/unfollowing.
+
+Requests from the app's own origin are accepted automatically. Additional browser origins must be listed in `CORS_ORIGIN`; production still requires this setting.
 
 ## Repository layout
 
